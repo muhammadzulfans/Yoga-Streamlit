@@ -1,13 +1,17 @@
-from wordcloud import WordCloud
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pymongo import MongoClient
+from wordcloud import WordCloud, STOPWORDS
 import re
 from collections import Counter
-from pymongo import MongoClient
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
+import numpy as np
 
-# Setup gaya visual
+# --- Set Streamlit page config untuk layout lebar ---
+st.set_page_config(layout="wide")
+
+# Setup visual style
 sns.set(style="whitegrid")
 plt.rcParams.update({
     "axes.titlesize": 16,
@@ -17,71 +21,167 @@ plt.rcParams.update({
     "axes.titleweight": 'bold'
 })
 
-# Koneksi MongoDB
+# --- MongoDB Connection ---
 uri = "mongodb+srv://zenpose:capstone12345@capestone.o68xbne.mongodb.net/?retryWrites=true&w=majority&appName=capestone"
 client = MongoClient(uri)
 db = client['zenPoseDatabase']
-berita = db['yogaNewsMultiSource']
+collection = db['yogaNewsMultiSource']
 
-# Load stopwords
-with open("sambungkata.txt", "r", encoding="utf-8") as f:
-    stopwords = set(line.strip() for line in f.readlines())
+# --- Load Data from MongoDB ---
+@st.cache_data
+def load_data():
+    data = list(collection.find())
+    df = pd.DataFrame(data)
+    df = df.drop_duplicates(subset='url')
+    df['tanggal'] = pd.to_datetime(df['tanggal'], errors='coerce')
+    return df
 
-# Streamlit UI
+# --- Clean Text ---
+def clean_text(text, stopwords):
+    text = text.lower()
+    text = re.sub(r'[^a-z\s]', '', text)
+    tokens = text.split()
+    return [t for t in tokens if t not in stopwords]
+
+# --- Load Stopwords ---
+def load_stopwords():
+    try:
+        with open("sambungkata.txt", "r", encoding="utf-8") as f:
+            custom = set(line.strip() for line in f.readlines())
+    except Exception:
+        custom = set()
+    return custom.union(STOPWORDS)
+
+# --- Lebarkan container Streamlit ---
+st.markdown(
+    """
+    <style>
+    .reportview-container .main .block-container{
+        max-width: 1200px;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# --- STREAMLIT UI ---
 st.title("🧘‍♀️ Yoga News Dashboard")
-st.markdown("Visualisasi data berita seputar yoga dari berbagai sumber media.")
-st.markdown("---")
 
-with st.spinner("Processing..."):
-    all_tokens = []
-    sumber_counter = Counter()
-    total_artikel = 0
+df = load_data()
 
-    for data in berita.find():
-        total_artikel += 1
+if df.empty:
+    st.warning("Tidak ada data ditemukan dalam koleksi MongoDB.")
+    st.stop()
 
-        # Hitung jumlah artikel per sumber
-        sumber = data.get('sumber', 'Tidak diketahui')
-        sumber_counter[sumber] += 1
+# 1. Total Artikel
+st.metric("📰 Total Artikel", len(df))
 
-        # Proses teks judul
-        isi = data.get('judul', '')
-        isi = isi.lower()
-        isi = re.sub(r'[^a-zA-Z\s]', '', isi)
-        tokens = isi.split()
-        tokens = [word for word in tokens if word not in stopwords]
-        all_tokens.extend(tokens)
+# Spasi
+# st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # Tampilkan total artikel
-    st.metric("📰 Total Artikel", total_artikel)
+# 2. Data Artikel
+st.subheader("🗂️ Daftar Artikel")
 
-    # Tampilkan jumlah artikel per sumber
-    if sumber_counter:
-        st.subheader("📊 Jumlah Artikel per Sumber")
-        sumber_df = pd.DataFrame(sumber_counter.items(), columns=['Sumber', 'Jumlah Artikel'])
+df_display = df[['judul', 'url']].dropna().reset_index(drop=True)
+df_display.columns = ['Judul Artikel', 'Link']
 
-        # Sort dan plot
-        sumber_df = sumber_df.sort_values(by='Jumlah Artikel', ascending=False)
-        fig_sumber, ax_sumber = plt.subplots(figsize=(10, 6))
-        palette = sns.color_palette("pastel")
-        sns.barplot(x='Jumlah Artikel', y='Sumber', data=sumber_df, palette=palette, ax=ax_sumber)
-        ax_sumber.set_title("Distribusi Artikel per Sumber Media")
-        ax_sumber.set_xlabel("Jumlah Artikel")
-        ax_sumber.set_ylabel("Sumber Media")
-        plt.tight_layout()
-        st.pyplot(fig_sumber)
-    else:
-        st.warning("Tidak ditemukan informasi sumber dalam artikel.")
 
-    # WordCloud
-    counter = Counter(all_tokens)
-    if counter:
-        st.subheader("☁️ Word Cloud Judul Artikel")
-        wordcloud = WordCloud(width=1000, height=500, background_color='white', colormap='viridis').generate_from_frequencies(counter)
-        fig_wc, ax_wc = plt.subplots(figsize=(12, 6))
-        ax_wc.imshow(wordcloud, interpolation='bilinear')
-        ax_wc.axis('off')
-        plt.tight_layout()
-        st.pyplot(fig_wc)
-    else:
-        st.warning("Tidak ada kata yang bisa diproses dari judul.")
+fullsize = st.checkbox("View Full Size Table", value=False)
+table_height = 600 if fullsize else 300
+st.dataframe(df_display, height=table_height)
+
+# Spasi
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+# 3. Word Cloud
+st.subheader("☁️ Word Cloud dari Judul Artikel")
+
+all_titles = " ".join(df['judul'].dropna())
+tokens = clean_text(all_titles, load_stopwords())
+token_counts = Counter(tokens)
+
+if token_counts:
+    wordcloud = WordCloud(
+        width=1000,
+        height=500,
+        background_color='white',
+        colormap='viridis',
+        max_words=50
+    ).generate_from_frequencies(token_counts)
+
+    fig_wc, ax_wc = plt.subplots(figsize=(12, 6))
+    ax_wc.imshow(wordcloud, interpolation='bilinear')
+    ax_wc.axis('off')
+    st.pyplot(fig_wc)
+else:
+    st.info("Tidak ada cukup kata untuk membuat Word Cloud.")
+
+# Spasi
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+# 4. Tren Kata Terbanyak
+st.subheader("📈 Tren Kata Terbanyak (Top 20)")
+
+most_common = token_counts.most_common(20)
+wc_df = pd.DataFrame(most_common, columns=["Kata", "Frekuensi"])
+wc_df = wc_df.sort_values(by="Frekuensi", ascending=True)
+
+fig_wc2, ax_wc2 = plt.subplots(figsize=(12, 6), facecolor='none')
+colors_wc = plt.cm.Blues(np.linspace(0.4, 1, len(wc_df)))
+
+bars_wc = ax_wc2.barh(wc_df['Kata'], wc_df['Frekuensi'], color=colors_wc)
+
+ax_wc2.xaxis.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
+ax_wc2.yaxis.grid(False)
+for spine in ax_wc2.spines.values():
+    spine.set_visible(False)
+
+ax_wc2.set_facecolor('none')
+ax_wc2.set_title("", color='white')
+ax_wc2.set_xlabel("Frekuensi", color='white')
+ax_wc2.set_ylabel("Kata", color='white')
+ax_wc2.tick_params(axis='x', colors='white')
+ax_wc2.tick_params(axis='y', colors='white')
+
+for bar in bars_wc:
+    width = bar.get_width()
+    ax_wc2.text(width, bar.get_y() + bar.get_height()/2, f'{int(width)}',
+                ha='left', va='center', color='white', fontsize=9)
+
+plt.tight_layout()
+st.pyplot(fig_wc2)
+
+# Spasi
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+# 5. Jumlah Artikel per Sumber
+st.subheader("📌 Jumlah Artikel per Sumber")
+
+sumber_counts = df['sumber'].value_counts().reset_index()
+sumber_counts.columns = ['Sumber', 'Jumlah Artikel']
+
+fig, ax = plt.subplots(figsize=(14, 7), facecolor='none')
+colors_sumber = plt.cm.Blues(np.linspace(0.4, 1, len(sumber_counts)))
+
+bars_sumber = ax.bar(sumber_counts['Sumber'], sumber_counts['Jumlah Artikel'], color=colors_sumber, width=0.6)
+
+ax.yaxis.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
+ax.xaxis.grid(False)
+for spine in ax.spines.values():
+    spine.set_visible(False)
+
+ax.set_xlabel("Sumber Media", color='white')
+ax.set_ylabel("Jumlah Artikel", color='white')
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right', color='white')
+ax.set_yticklabels(ax.get_yticks(), color='white')
+ax.set_facecolor('none')
+
+for bar in bars_sumber:
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2, height, f'{int(height)}',
+            ha='center', va='bottom', color='white', fontsize=9)
+
+plt.tight_layout()
+st.pyplot(fig)
