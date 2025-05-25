@@ -7,6 +7,12 @@ from wordcloud import WordCloud, STOPWORDS
 import re
 from collections import Counter
 import numpy as np
+import os
+from dotenv import load_dotenv
+
+# --- Load environment variables ---
+load_dotenv()
+uri = os.getenv("MONGO_URI")
 
 # --- Set Streamlit page config untuk layout lebar ---
 st.set_page_config(layout="wide")
@@ -22,7 +28,6 @@ plt.rcParams.update({
 })
 
 # --- MongoDB Connection ---
-uri = "mongodb+srv://zenpose:capstone12345@capestone.o68xbne.mongodb.net/?retryWrites=true&w=majority&appName=capestone"
 client = MongoClient(uri)
 db = client['zenPoseDatabase']
 collection = db['yogaNewsMultiSource']
@@ -79,14 +84,13 @@ if df.empty:
 st.metric("📰 Total Artikel", len(df))
 
 # Spasi
-# st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("<br><br>", unsafe_allow_html=True)
 
 # 2. Data Artikel
 st.subheader("🗂️ Daftar Artikel")
 
 df_display = df[['judul', 'url']].dropna().reset_index(drop=True)
 df_display.columns = ['Judul Artikel', 'Link']
-
 
 fullsize = st.checkbox("View Full Size Table", value=False)
 table_height = 600 if fullsize else 300
@@ -139,7 +143,6 @@ for spine in ax_wc2.spines.values():
     spine.set_visible(False)
 
 ax_wc2.set_facecolor('none')
-ax_wc2.set_title("", color='white')
 ax_wc2.set_xlabel("Frekuensi", color='white')
 ax_wc2.set_ylabel("Kata", color='white')
 ax_wc2.tick_params(axis='x', colors='white')
