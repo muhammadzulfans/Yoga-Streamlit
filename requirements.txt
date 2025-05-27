@@ -29,10 +29,12 @@ pydeck==0.9.1
 pymongo==4.13.0
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
+python-dotenv==1.1.0
 pytz==2025.2
 referencing==0.36.2
 requests==2.32.3
 rpds-py==0.25.1
+seaborn==0.13.2
 six==1.17.0
 smmap==5.0.2
 streamlit==1.45.1
@@ -44,4 +46,3 @@ tzdata==2025.2
 urllib3==2.4.0
 watchdog==6.0.0
 wordcloud==1.9.4
-seaborn~=0.13.2

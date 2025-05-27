@@ -8,10 +8,8 @@ import re
 from collections import Counter
 import numpy as np
 import os
-from dotenv import load_dotenv
 
 # --- Load environment variables ---
-load_dotenv()
 uri = os.getenv("mongodb+srv://zenpose:capstone12345@capestone.o68xbne.mongodb.net/?retryWrites=true&w=majority&appName=capestone")
 
 # --- Set Streamlit page config untuk layout lebar ---
