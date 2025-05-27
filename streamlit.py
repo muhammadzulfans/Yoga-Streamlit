@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 # --- Load environment variables ---
 load_dotenv()
-uri = os.getenv("MONGO_URI")
+uri = os.getenv("mongodb+srv://zenpose:capstone12345@capestone.o68xbne.mongodb.net/?retryWrites=true&w=majority&appName=capestone")
 
 # --- Set Streamlit page config untuk layout lebar ---
 st.set_page_config(layout="wide")
