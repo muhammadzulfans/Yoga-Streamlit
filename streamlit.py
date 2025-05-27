@@ -10,14 +10,13 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 
-# --- Load environment variables ---
 load_dotenv()
-uri = os.getenv("MONGO_URI")
-
-# --- Set Streamlit page config untuk layout lebar ---
+uri = "mongodb+srv://zenpose:capstone12345@capestone.o68xbne.mongodb.net/?retryWrites=true&w=majority&appName=capestone"
+client = MongoClient(uri)
+db = client['zenPoseDatabase']
+collection = db['yogaNewsMultiSource']
 st.set_page_config(layout="wide")
 
-# Setup visual style
 sns.set(style="whitegrid")
 plt.rcParams.update({
     "axes.titlesize": 16,
@@ -27,12 +26,10 @@ plt.rcParams.update({
     "axes.titleweight": 'bold'
 })
 
-# --- MongoDB Connection ---
 client = MongoClient(uri)
 db = client['zenPoseDatabase']
 collection = db['yogaNewsMultiSource']
 
-# --- Load Data from MongoDB ---
 @st.cache_data
 def load_data():
     data = list(collection.find())
@@ -41,14 +38,12 @@ def load_data():
     df['tanggal'] = pd.to_datetime(df['tanggal'], errors='coerce')
     return df
 
-# --- Clean Text ---
 def clean_text(text, stopwords):
     text = text.lower()
     text = re.sub(r'[^a-z\s]', '', text)
     tokens = text.split()
     return [t for t in tokens if t not in stopwords]
 
-# --- Load Stopwords ---
 def load_stopwords():
     try:
         with open("sambungkata.txt", "r", encoding="utf-8") as f:
@@ -57,7 +52,6 @@ def load_stopwords():
         custom = set()
     return custom.union(STOPWORDS)
 
-# --- Lebarkan container Streamlit ---
 st.markdown(
     """
     <style>
@@ -71,7 +65,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- STREAMLIT UI ---
 st.title("🧘‍♀️ Yoga News Dashboard")
 
 df = load_data()
@@ -80,15 +73,9 @@ if df.empty:
     st.warning("Tidak ada data ditemukan dalam koleksi MongoDB.")
     st.stop()
 
-# 1. Total Artikel
 st.metric("📰 Total Artikel", len(df))
-
-# Spasi
 st.markdown("<br><br>", unsafe_allow_html=True)
-
-# 2. Data Artikel
 st.subheader("🗂️ Daftar Artikel")
-
 df_display = df[['judul', 'url']].dropna().reset_index(drop=True)
 df_display.columns = ['Judul Artikel', 'Link']
 
@@ -96,10 +83,8 @@ fullsize = st.checkbox("View Full Size Table", value=False)
 table_height = 600 if fullsize else 300
 st.dataframe(df_display, height=table_height)
 
-# Spasi
 st.markdown("<br><br>", unsafe_allow_html=True)
 
-# 3. Word Cloud
 st.subheader("☁️ Word Cloud dari Judul Artikel")
 
 all_titles = " ".join(df['judul'].dropna())
@@ -122,10 +107,7 @@ if token_counts:
 else:
     st.info("Tidak ada cukup kata untuk membuat Word Cloud.")
 
-# Spasi
 st.markdown("<br><br>", unsafe_allow_html=True)
-
-# 4. Tren Kata Terbanyak
 st.subheader("📈 Tren Kata Terbanyak (Top 20)")
 
 most_common = token_counts.most_common(20)
@@ -156,18 +138,13 @@ for bar in bars_wc:
 plt.tight_layout()
 st.pyplot(fig_wc2)
 
-# Spasi
 st.markdown("<br><br>", unsafe_allow_html=True)
 
-# 5. Jumlah Artikel per Sumber
 st.subheader("📌 Jumlah Artikel per Sumber")
-
 sumber_counts = df['sumber'].value_counts().reset_index()
 sumber_counts.columns = ['Sumber', 'Jumlah Artikel']
-
 fig, ax = plt.subplots(figsize=(14, 7), facecolor='none')
 colors_sumber = plt.cm.Blues(np.linspace(0.4, 1, len(sumber_counts)))
-
 bars_sumber = ax.bar(sumber_counts['Sumber'], sumber_counts['Jumlah Artikel'], color=colors_sumber, width=0.6)
 
 ax.yaxis.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
